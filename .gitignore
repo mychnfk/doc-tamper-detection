@@ -29,6 +29,13 @@ datasets/
 # Test images (may contain sensitive documents)
 test_images/
 samples/
+example-images/
+
+# TruFor (external dependency, clone separately)
+TruFor/
+
+# Inference output
+output/
 
 # IDE
 .vscode/
