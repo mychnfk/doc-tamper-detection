@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+
+# Model weights
+*.pth
+*.pt
+*.ckpt
+*.bin
+*.safetensors
+weights/
+pretrained_models/
+checkpoints/
+
+# Data
+data/
+datasets/
+*.pkl
+*.h5
+
+# Test images (may contain sensitive documents)
+test_images/
+samples/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+docker-compose.override.yml
+
+# Gradio
+flagged/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Env
+.env
+.env.local
