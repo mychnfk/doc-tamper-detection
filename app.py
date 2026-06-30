@@ -35,7 +35,8 @@ def render_confidence(conf_map):
 
 
 # ─── VLM 复核 ──────────────────────────────────────────────────────
-VLM_SYSTEM_PROMPT = """你是金融文档审核 AI 助手。你将收到：
+from datetime import date
+VLM_SYSTEM_PROMPT = f"""你是金融文档审核 AI 助手。当前日期：{date.today().isoformat()}。你将收到：
 1. 一张待审核的金融文档图片（原图）
 2. CV 篡改检测工具的分析结果（热力图，红色=可疑区域）
 3. CV 工具给出的篡改置信度分数（0-1，越高越可疑）
@@ -133,9 +134,9 @@ def analyze(image_path, enable_vlm):
 
 
 # ─── Gradio UI ──────────────────────────────────────────────────────
-with gr.Blocks(title="金融文档篡改检测") as demo:
+with gr.Blocks(title="文档篡改检测系统") as demo:
     gr.Markdown("""
-    # 🔍 金融文档篡改检测系统
+    # 🔍 文档篡改检测系统
     **CV 工具检测 + AI 独立复核验证**
 
     上传文档图片 → TruFor 像素级篡改检测 → Qwen-VL 多模态复核 → 输出审核意见
