@@ -12,11 +12,15 @@ TRUFOR_ROOT = os.path.join(os.path.dirname(__file__), 'TruFor', 'TruFor_train_te
 sys.path.insert(0, TRUFOR_ROOT)
 sys.path.insert(0, os.path.join(TRUFOR_ROOT, '..'))
 
+import config as docguard_config
+
 from lib.config import config, update_config
 from lib.utils import get_model
 
 
 def select_device():
+    if docguard_config.DEVICE_OVERRIDE:
+        return docguard_config.DEVICE_OVERRIDE
     if torch.cuda.is_available():
         return 'cuda:0'
     elif torch.backends.mps.is_available():
@@ -199,7 +203,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', required=True, help='image file or directory')
     parser.add_argument('-o', '--output', default='output', help='output directory')
-    parser.add_argument('--max-size', type=int, default=1792, help='max dimension before tiled inference')
+    parser.add_argument('--max-size', type=int, default=docguard_config.MAX_SIZE, help='max dimension before tiled inference')
     parser.add_argument('--weights', default=os.path.join(TRUFOR_ROOT, 'pretrained_models', 'trufor.pth.tar'))
     args = parser.parse_args()
 
