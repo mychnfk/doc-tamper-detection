@@ -36,6 +36,11 @@ eval-images/**/*.jpeg
 eval-images/**/*.png
 eval-images/**/*.heic
 eval-images/**/*.webp
+eval-images/**/*.heif
+eval-images/**/*.tif
+eval-images/**/*.tiff
+eval-images/**/*.bmp
+eval-images/**/*.pdf
 
 # TruFor (external dependency, clone separately)
 TruFor/
