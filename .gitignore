@@ -30,6 +30,12 @@ datasets/
 test_images/
 samples/
 example-images/
+# eval-images 评测图含真实业务单据，公开仓库严禁入库（脚手架 README/.gitkeep 已跟踪不受影响）
+eval-images/**/*.jpg
+eval-images/**/*.jpeg
+eval-images/**/*.png
+eval-images/**/*.heic
+eval-images/**/*.webp
 
 # TruFor (external dependency, clone separately)
 TruFor/
