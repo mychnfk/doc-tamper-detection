@@ -73,8 +73,8 @@ class SecondOpinionTool(Tool):
         return ok if config.ENABLE_HIFI == "auto" else True
 
     def run(self, ctx, **kwargs):
-        import hifi_inference
         try:
+            import hifi_inference
             result = hifi_inference.run_hifi(ctx.image_path)
             heat = hifi_inference.render_hifi_heatmap(result)
             return ToolResult(

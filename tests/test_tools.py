@@ -1,5 +1,8 @@
+import sys
 from dataclasses import dataclass, field
 from PIL import Image
+
+import config
 from tools import ToolResult, ZoomRegionTool, SecondOpinionTool, build_registry
 
 
@@ -48,3 +51,10 @@ def test_registry_excludes_unavailable(monkeypatch):
     monkeypatch.setattr(SecondOpinionTool, "available", lambda self: False)
     names = [t.name for t in build_registry()]
     assert "zoom_region" in names and "second_opinion" not in names
+
+
+def test_second_opinion_missing_module_wrapped_error(monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_HIFI", "on")
+    monkeypatch.setitem(sys.modules, "hifi_inference", None)
+    r = SecondOpinionTool().run(None)
+    assert r.error and r.text
