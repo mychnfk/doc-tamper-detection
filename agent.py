@@ -66,9 +66,11 @@ def parse_turn(raw):
         raise ProtocolError(f"JSON 解析失败: {e}")
     if d.get("decision") not in ("investigate", "verdict"):
         raise ProtocolError("decision 字段缺失或非法")
-    if d["decision"] == "investigate" and not d.get("action", {}).get("tool"):
+    action = d.get("action")
+    if d["decision"] == "investigate" and not (isinstance(action, dict) and action.get("tool")):
         raise ProtocolError("investigate 必须携带 action.tool")
-    if d["decision"] == "verdict" and not d.get("verdict", {}).get("conclusion"):
+    verdict = d.get("verdict")
+    if d["decision"] == "verdict" and not (isinstance(verdict, dict) and verdict.get("conclusion")):
         raise ProtocolError("verdict 必须携带 verdict.conclusion")
     return d
 

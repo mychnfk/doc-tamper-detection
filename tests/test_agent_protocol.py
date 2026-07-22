@@ -33,6 +33,9 @@ def test_parse_picks_last_json_block():
     '```json\n{"thought":"缺 decision"}\n```',
     '```json\n{"decision":"investigate"}\n```',          # investigate 但缺 action
     '```json\n{decision: 不是合法json}\n```',
+    '```json\n{"decision":"investigate","action":null}\n```',           # action 非 dict（null）
+    '```json\n{"decision":"verdict","verdict":null}\n```',              # verdict 非 dict（null）
+    '```json\n{"decision":"investigate","action":"zoom_region"}\n```',  # action 非 dict（字符串）
 ])
 def test_parse_errors(raw):
     with pytest.raises(ProtocolError):
