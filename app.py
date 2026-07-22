@@ -145,7 +145,7 @@ with gr.Blocks(title="DocGuard 文档篡改智能审核", theme=gr.themes.Soft()
             info_out = gr.Textbox(label="推理信息", lines=1)
 
         with gr.Column(scale=2):
-            trace_out = gr.Chatbot(label="AI 审核过程（实时）", type="messages", height=560)
+            trace_out = gr.Chatbot(label="AI 审核过程（实时）", height=560)
 
     submit_btn.click(fn=analyze, inputs=[input_image, mode],
                      outputs=[heatmap_out, conf_out, verdict_out, info_out, trace_out])
