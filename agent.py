@@ -174,3 +174,92 @@ def direct_review(ctx):
         ]},
     ]
     return call_vlm(messages)
+
+
+# ─── Loop 主体与三模式入口 ───────────────────────────────────────────
+def _cv_only_verdict(ctx):
+    if ctx.score > config.HIGH_THRESH:
+        label, risk = "高度可疑", "高"
+    elif ctx.score > config.LOW_THRESH:
+        label, risk = "疑似异常", "中"
+    else:
+        label, risk = "未见明显篡改", "低"
+    text = (f"### 审核结论：{label}\n\n**CV 置信度分数**：{ctx.score:.4f}\n\n"
+            f"**风险等级**：{RISK_EMOJI[risk]} {risk}\n\n"
+            f"（AI 复核暂不可用，以上为 CV 工具独立判定，建议结合人工审核）")
+    return {"verdict": None, "text": text, "source": "cv"}
+
+
+def _agent_loop(ctx, tools, vlm):
+    """真 Agent Loop。异常向上抛，由 review() 统一降级。"""
+    messages = [{"role": "system", "content": [{"text": build_system_prompt(tools)}]},
+                {"role": "user", "content": build_first_user_content(ctx)}]
+    tool_map = {t.name: t for t in tools}
+    parse_fails = 0
+
+    for turn in range(1, config.AGENT_MAX_TURNS + 2):     # +1 轮用于强制收敛
+        forced = turn > config.AGENT_MAX_TURNS
+        if forced:
+            messages.append({"role": "user", "content": [
+                {"text": "已到最大查证轮数，请立即输出 decision=verdict 的最终判定。"}]})
+        raw = vlm(messages)
+        try:
+            d = parse_turn(raw)
+        except ProtocolError as e:
+            parse_fails += 1
+            if parse_fails >= 2:
+                raise
+            messages.append({"role": "assistant", "content": [{"text": raw}]})
+            messages.append({"role": "user", "content": [
+                {"text": f"输出格式错误（{e}）。请严格按系统提示，只输出一个 ```json 代码块。"}]})
+            continue
+        parse_fails = 0
+        messages.append({"role": "assistant", "content": [{"text": raw}]})
+
+        yield TraceEvent(turn, "thought", {"thought": d.get("thought", "")})
+
+        if d["decision"] == "verdict" or forced:
+            v = d.get("verdict") or {"conclusion": "无法判定", "risk": "中",
+                                     "regions": "—", "basis": "模型未给出结构化结论", "advice": "建议人工审核"}
+            yield TraceEvent(turn, "verdict", {"verdict": v, "text": format_verdict(v),
+                                               "source": "agent-forced" if forced else "agent"})
+            return
+
+        name = d["action"]["tool"]
+        args = d["action"].get("args", {}) or {}
+        yield TraceEvent(turn, "tool_call", {"tool": name, "args": args})
+        tool = tool_map.get(name)
+        if tool is None:
+            # 鸭子构造，保持 agent 不 import tools 的依赖方向
+            tr = type("TR", (), {"text": f"工具 {name} 不存在", "images": [], "error": True})()
+        else:
+            tr = tool.run(ctx, **args)
+        yield TraceEvent(turn, "tool_result", {"tool": name, "text": tr.text,
+                                               "images": list(tr.images), "error": tr.error})
+        messages.append({"role": "user", "content": tool_result_content(name, tr)})
+
+    # 理论不可达（forced 分支必 return），防御性兜底
+    raise ProtocolError("loop 未收敛")
+
+
+def review(ctx, tools, mode="agent", vlm=call_vlm):
+    """统一入口：mode=agent|direct|cv。保证最后一个事件必为 verdict。"""
+    yield TraceEvent(0, "stage", {"stage": "vlm_review", "mode": mode})
+
+    if mode == "cv":
+        yield TraceEvent(0, "verdict", _cv_only_verdict(ctx))
+        return
+
+    if mode == "agent":
+        try:
+            yield from _agent_loop(ctx, tools, vlm)
+            return
+        except (ProtocolError, RuntimeError) as e:
+            yield TraceEvent(0, "fallback", {"reason": f"Agent 模式失败（{e}），回退直链复核"})
+
+    # mode == "direct"，或 agent 回退至此
+    try:
+        text = direct_review(ctx) if vlm is call_vlm else vlm(None)
+        yield TraceEvent(0, "verdict", {"verdict": None, "text": text, "source": "direct"})
+    except Exception:
+        yield TraceEvent(0, "verdict", _cv_only_verdict(ctx))
