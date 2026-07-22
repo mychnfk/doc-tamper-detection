@@ -45,6 +45,10 @@ eval-images/**/*.pdf
 # TruFor (external dependency, clone separately)
 TruFor/
 
+# HiFi-Net (external dependency, clone separately; CUDA-only source, 见 docs/dev-log.md Task 11)
+HiFi_IFDL/
+hifi_weights/
+
 # Inference output
 output/
 
