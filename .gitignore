@@ -61,3 +61,4 @@ flagged/
 # Env
 .env
 .env.local
+.superpowers/
