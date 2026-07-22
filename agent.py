@@ -264,11 +264,14 @@ def review(ctx, tools, mode="agent", vlm=call_vlm):
             yield from _agent_loop(ctx, tools, vlm)
             return
         except Exception as e:
-            yield TraceEvent(0, "fallback", {"reason": f"Agent 模式失败（{e}），回退直链复核"})
+            yield TraceEvent(0, "fallback", {"reason": "AI 深度复核暂时不可用，已自动转为快速复核",
+                                             "detail": str(e)})
 
     # mode == "direct"，或 agent 回退至此
     try:
         text = direct_review(ctx) if vlm is call_vlm else vlm(None)
         yield TraceEvent(0, "verdict", {"verdict": None, "text": text, "source": "direct"})
-    except Exception:
+    except Exception as e:
+        yield TraceEvent(0, "fallback", {"reason": "智能复核暂时不可用，以下为图像检测结果",
+                                         "detail": str(e)})
         yield TraceEvent(0, "verdict", _cv_only_verdict(ctx))

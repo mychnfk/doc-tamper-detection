@@ -65,7 +65,7 @@ EVENT_TITLE = {
     'thought': '💭 第{turn}轮·思考',
     'tool_call': '🔧 第{turn}轮·调用工具',
     'tool_result': '📎 第{turn}轮·工具返回',
-    'fallback': '⚠️ 降级',
+    'fallback': '⚠️ 已切换复核方式',
 }
 
 MODE_MAP = {'Agent 复核（推荐）': 'agent', '快速复核': 'direct', '仅 CV 检测': 'cv'}
@@ -109,6 +109,12 @@ def analyze(image_path, mode_label):
                          "metadata": {"title": EVENT_TITLE['tool_result'].format(turn=ev.turn)}})
             for img in ev.payload.get('images', []):
                 chat.append({"role": "assistant", "content": {"path": _save_tmp(img)}})
+        elif ev.type == 'fallback':
+            chat.append({"role": "assistant", "content": ev.payload['reason'],
+                         "metadata": {"title": EVENT_TITLE['fallback']}})
+            if ev.payload.get('detail'):        # 原始报错折叠收纳，彩排排障用，默认不示人
+                chat.append({"role": "assistant", "content": ev.payload['detail'],
+                             "metadata": {"title": "⚙️ 技术详情", "status": "done"}})
         else:
             title = EVENT_TITLE.get(ev.type, ev.type).format(turn=ev.turn)
             body = ev.payload.get('thought') or ev.payload.get('reason') or \
@@ -134,7 +140,8 @@ with gr.Blocks(title="DocGuard 文档篡改智能审核", theme=gr.themes.Soft()
             gr.Examples(
                 examples=[[os.path.join("example-images", f)]
                           for f in sorted(os.listdir("example-images"))
-                          if f.lower().endswith(('.jpg', '.jpeg', '.png'))],
+                          if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                if os.path.isdir("example-images") else [],
                 inputs=[input_image], label="示例文档")
 
         with gr.Column(scale=2):

@@ -113,6 +113,24 @@ def test_vlm_exception_falls_back_to_cv():
     evs = list(review(_ctx(), [], mode="agent", vlm=vlm))
     assert evs[-1].type == "verdict"
     assert evs[-1].payload["source"] == "cv"
+    # 降级提示财务友好化：reason 不含原始异常/类名，detail 单独保留排障信息
+    fbs = [e for e in evs if e.type == "fallback"]
+    assert len(fbs) == 2                # agent→direct、direct→cv 各提示一次
+    for fb in fbs:
+        assert "网络挂了" not in fb.payload["reason"]
+        assert "ConnectionError" not in fb.payload["reason"]
+        assert "网络挂了" in fb.payload["detail"]
+
+
+def test_direct_dead_yields_fallback_notice_then_cv():
+    def vlm(messages):
+        raise RuntimeError("boom-xyz")
+
+    evs = list(review(_ctx(score=0.2), [], mode="direct", vlm=vlm))
+    assert _types(evs) == ["stage", "fallback", "verdict"]   # 不再静默降级
+    assert "boom-xyz" not in evs[1].payload["reason"]
+    assert "boom-xyz" in evs[1].payload["detail"]
+    assert evs[-1].payload["source"] == "cv"
 
 
 def test_vlm_retry_once_then_success():
