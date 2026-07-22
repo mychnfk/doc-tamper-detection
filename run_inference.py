@@ -137,7 +137,15 @@ def run_tiled(model, image_path, device, tile_size=1024, overlap=256):
     }
 
 
-def run_single(model, image_path, device, max_size=1792, tile_size=1024, overlap=256):
+def _resolve_max_size(max_size):
+    """max_size 为 None 时回退到 config.MAX_SIZE，避免签名默认值与配置脱节。"""
+    if max_size is None:
+        return docguard_config.MAX_SIZE
+    return max_size
+
+
+def run_single(model, image_path, device, max_size=None, tile_size=1024, overlap=256):
+    max_size = _resolve_max_size(max_size)
     img = Image.open(image_path).convert('RGB')
     orig_size = img.size
     w, h = img.size

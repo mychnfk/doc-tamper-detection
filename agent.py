@@ -140,7 +140,7 @@ def format_verdict(v):
 
 
 # ─── 直链回退（自 app.py 迁移，初复赛实战验证过的路径）────────────────
-DIRECT_SYSTEM_PROMPT = f"""你是金融文档审核 AI 助手。当前日期：{date.today().isoformat()}。你将收到：
+DIRECT_SYSTEM_PROMPT = """你是金融文档审核 AI 助手。当前日期：{today}。你将收到：
 1. 一张待审核的金融文档图片（原图）
 2. CV 篡改检测工具的分析结果（热力图，红色=可疑区域）
 3. CV 工具给出的篡改置信度分数（0-1，越高越可疑）
@@ -164,7 +164,7 @@ Step 4 - 输出审核意见：用中文，面向财务人员，不使用技术�
 
 def direct_review(ctx):
     messages = [
-        {"role": "system", "content": [{"text": DIRECT_SYSTEM_PROMPT}]},
+        {"role": "system", "content": [{"text": DIRECT_SYSTEM_PROMPT.format(today=date.today().isoformat())}]},
         {"role": "user", "content": [
             {"text": f"CV 篡改检测置信度分数：{ctx.score:.4f}（0=正常，1=篡改）\n\n请对以下文档进行复核审查："},
             {"text": "【原始文档图片】"},
