@@ -93,7 +93,7 @@ def build_system_prompt(tools):
  "verdict": {{"conclusion": "正常/疑似篡改/高度可疑/无法审核(非金融单据)",
              "risk": "低/中/高",
              "regions": "异常区域及内容，无则写'无'",
-             "basis": "复核依据（面向财务人员，禁用技术术语）",
+             "basis": "复核依据（大白话描述你看到的具体证据；不得出现'CV/TruFor/模型/置信度/热力图/误报'等系统内部术语或原始分数数字）",
              "advice": "建议操作"}}}}
 ```
 decision=investigate 时必须给 action 且不给 verdict；decision=verdict 时必须给 verdict。
