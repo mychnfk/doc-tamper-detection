@@ -88,6 +88,10 @@ def run_batch(mode, out_csv):
         print(f"[{cat}] {os.path.basename(path)} score={row['score']}"
               + (f" agent={row['verdict_bin']}({row['source']})" if mode == "agent" else ""))
 
+    if not rows:
+        print("未在 eval-images/ 下找到任何图片，请先按 eval-images/README.md 放置素材")
+        return
+
     with open(out_csv, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
