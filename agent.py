@@ -202,7 +202,10 @@ def _agent_loop(ctx, tools, vlm):
         if forced:
             messages.append({"role": "user", "content": [
                 {"text": "已到最大查证轮数，请立即输出 decision=verdict 的最终判定。"}]})
-        raw = vlm(messages)
+        try:
+            raw = vlm(messages)
+        except Exception:
+            raw = vlm(messages)     # 失败重试 1 次，仍失败则向上抛，由 review() 统一降级
         try:
             d = parse_turn(raw)
         except ProtocolError as e:
@@ -219,8 +222,10 @@ def _agent_loop(ctx, tools, vlm):
         yield TraceEvent(turn, "thought", {"thought": d.get("thought", "")})
 
         if d["decision"] == "verdict" or forced:
-            v = d.get("verdict") or {"conclusion": "无法判定", "risk": "中",
-                                     "regions": "—", "basis": "模型未给出结构化结论", "advice": "建议人工审核"}
+            v = d.get("verdict")
+            if not isinstance(v, dict):
+                v = {"conclusion": "无法判定", "risk": "中",
+                     "regions": "—", "basis": "模型未给出结构化结论", "advice": "建议人工审核"}
             yield TraceEvent(turn, "verdict", {"verdict": v, "text": format_verdict(v),
                                                "source": "agent-forced" if forced else "agent"})
             return
@@ -233,7 +238,11 @@ def _agent_loop(ctx, tools, vlm):
             # 鸭子构造，保持 agent 不 import tools 的依赖方向
             tr = type("TR", (), {"text": f"工具 {name} 不存在", "images": [], "error": True})()
         else:
-            tr = tool.run(ctx, **args)
+            try:
+                tr = tool.run(ctx, **args)
+            except Exception as e:
+                # 同一鸭子构造模式，工具执行异常包成 ToolResult(error) 交还 VLM 裁决
+                tr = type("TR", (), {"text": f"工具 {name} 执行出错：{e}", "images": [], "error": True})()
         yield TraceEvent(turn, "tool_result", {"tool": name, "text": tr.text,
                                                "images": list(tr.images), "error": tr.error})
         messages.append({"role": "user", "content": tool_result_content(name, tr)})
@@ -254,7 +263,7 @@ def review(ctx, tools, mode="agent", vlm=call_vlm):
         try:
             yield from _agent_loop(ctx, tools, vlm)
             return
-        except (ProtocolError, RuntimeError) as e:
+        except Exception as e:
             yield TraceEvent(0, "fallback", {"reason": f"Agent 模式失败（{e}），回退直链复核"})
 
     # mode == "direct"，或 agent 回退至此

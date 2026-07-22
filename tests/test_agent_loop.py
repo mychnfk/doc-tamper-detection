@@ -102,3 +102,53 @@ def test_mode_direct_and_cv():
 
     evs = list(review(_ctx(score=0.2), [], mode="cv"))
     assert evs[-1].payload["source"] == "cv" and "未见明显篡改" in evs[-1].payload["text"]
+
+
+# ─── Review 追加：三个 reviewer finding 的回归测试 ──────────────────────
+
+def test_vlm_exception_falls_back_to_cv():
+    def vlm(messages):
+        raise ConnectionError("网络挂了")
+
+    evs = list(review(_ctx(), [], mode="agent", vlm=vlm))
+    assert evs[-1].type == "verdict"
+    assert evs[-1].payload["source"] == "cv"
+
+
+def test_vlm_retry_once_then_success():
+    calls = {"n": 0}
+
+    def vlm(messages):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConnectionError("网络抖动")
+        return VERDICT
+
+    evs = list(review(_ctx(), [FakeTool()], mode="agent", vlm=vlm))
+    assert evs[-1].type == "verdict"
+    assert evs[-1].payload["source"] == "agent"
+    assert calls["n"] == 2
+
+
+def test_tool_raise_wrapped_not_crash():
+    class RaisingTool(FakeTool):
+        def run(self, ctx, **kw):
+            raise TypeError("bbox 含非数字项")
+
+    evs = list(review(_ctx(), [RaisingTool()], mode="agent",
+                      vlm=_scripted_vlm([INVESTIGATE, VERDICT])))
+    tr = [e for e in evs if e.type == "tool_result"][0]
+    assert tr.payload["error"] is True
+    assert evs[-1].type == "verdict"
+    assert evs[-1].payload["source"] == "agent"
+
+
+FORCED_NONDICT = ('```json\n{"thought":"继续查证","decision":"investigate",'
+                  '"verdict":"看起来正常","action":{"tool":"zoom_region","args":{"region_id":1}}}\n```')
+
+
+def test_forced_turn_nondict_verdict_no_crash():
+    evs = list(review(_ctx(), [FakeTool()], mode="agent",
+                      vlm=lambda messages: FORCED_NONDICT))
+    assert evs[-1].type == "verdict"
+    assert evs[-1].payload["source"] == "agent-forced"
