@@ -4,6 +4,9 @@ import { runDetection } from '@/lib/sse'
 import type { CvPayload, TraceEvent, VerdictPayload } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { TraceView } from '@/components/TraceView'
+import { VerdictCard } from '@/components/VerdictCard'
+import { CompareSlider } from '@/components/CompareSlider'
+import { TechDetails } from '@/components/TechDetails'
 
 type Status = 'idle' | 'running' | 'done' | 'error'
 
@@ -15,6 +18,16 @@ const MODES = [
 
 /** 与后端 config.MAX_SIZE 一致：超过即走切片推理，耗时量级差约 8 倍 */
 const TILED_THRESHOLD = 1792
+
+/**
+ * 预计耗时。CV 与 VLM 必须分开算——只报 CV 会严重低估：
+ * 实测小图 CV 3–8s，切片大图约 80s；VLM 每轮 17–37s，agent 通常 2 轮。
+ */
+function eta(mode: string, tiled: boolean) {
+  if (mode === 'cv') return tiled ? '约需 1–2 分钟（大图切片推理）' : '约需 10 秒'
+  if (mode === 'direct') return tiled ? '约需 2–3 分钟（大图切片推理）' : '约需 40 秒'
+  return tiled ? '约需 3–4 分钟（大图切片推理）' : '约需 1–2 分钟'
+}
 
 export default function DetectPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -58,12 +71,14 @@ export default function DetectPage() {
   const cv = events.find((e) => e.type === 'cv')?.payload as CvPayload | undefined
   const verdict = events.find((e) => e.type === 'verdict')?.payload as VerdictPayload | undefined
   const tiled = dims ? Math.max(dims.w, dims.h) > TILED_THRESHOLD : false
-  const etaHint = tiled ? '大图需切片推理，约需 1–2 分钟' : '约需 10 秒'
+  const etaHint = eta(mode, tiled)
+  const started = status !== 'idle'
 
   return (
     <div className="mx-auto grid max-w-[1400px] gap-6 px-6 py-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-      {/* 左栏：上传与图像 */}
-      <section className="space-y-4">
+      {/* 左栏：上传与图像。sticky 是因为右栏轨迹会长得多，
+          不固定的话滚到轨迹末尾时证据图已经滚出屏幕，没法边看结论边看图 */}
+      <section className="space-y-4 lg:sticky lg:top-6 lg:self-start">
         {!file ? (
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -79,32 +94,90 @@ export default function DetectPage() {
             <div className="text-xs text-muted-foreground">支持 JPG / PNG / HEIC，单张上传</div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
-            <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 text-sm">
-              <FileImageIcon className="size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate" title={file.name}>{file.name}</span>
-              {dims && (
-                <span className="num shrink-0 text-xs text-muted-foreground">
-                  {dims.w}×{dims.h}{tiled && ' · 切片'}
-                </span>
+          <>
+            {/* 控制条置于结果之上：检测后对比图很高，控件留在底部就要滚回去找 */}
+            <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-card">
+              <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 text-sm">
+                <FileImageIcon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate" title={file.name}>{file.name}</span>
+                {dims && (
+                  <span className="num shrink-0 text-xs text-muted-foreground">
+                    {dims.w}×{dims.h}{tiled && ' · 切片'}
+                  </span>
+                )}
+                <button
+                  onClick={() => { cancel(); setFile(null); setPreview(''); setEvents([]); setStatus('idle') }}
+                  className="shrink-0 rounded-[var(--radius)] p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="移除图片"
+                >
+                  <XIcon className="size-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                {started ? (
+                  /* 已开跑：模式退化为一行只读摘要，把版面还给结果 */
+                  <span className="text-sm text-muted-foreground">
+                    模式 <span className="text-foreground">{MODES.find((m) => m.id === mode)?.label}</span>
+                  </span>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {MODES.map((m) => (
+                      <label
+                        key={m.id}
+                        title={m.hint}
+                        className={`cursor-pointer rounded-[var(--radius)] border px-2.5 py-1.5 text-sm ${
+                          mode === m.id
+                            ? 'border-primary bg-secondary text-secondary-foreground'
+                            : 'border-border hover:bg-muted'
+                        }`}
+                      >
+                        <input
+                          type="radio" name="mode" value={m.id} checked={mode === m.id}
+                          onChange={() => setMode(m.id)} className="sr-only"
+                        />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-1 items-center justify-end gap-3">
+                  {status === 'running' ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">检测中，{etaHint}</span>
+                      <Button variant="outline" size="sm" onClick={cancel}>中止</Button>
+                    </>
+                  ) : status === 'done' ? (
+                    <>
+                      <span className="num text-xs text-muted-foreground">
+                        完成，耗时 {(durationMs / 1000).toFixed(1)}s
+                      </span>
+                      <Button variant="outline" size="sm" onClick={start}>重新检测</Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">预计{etaHint}</span>
+                      <Button size="sm" onClick={start}>开始检测</Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 拿到热力图后此处让位给对比滑块，避免同一张图出现两次 */}
+              {!cv && (
+                <div className="flex min-h-[380px] items-center justify-center border-t border-border bg-muted p-4">
+                  <img
+                    src={preview}
+                    alt="待检测单据"
+                    className="max-h-[560px] max-w-full object-contain"
+                    onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                  />
+                </div>
               )}
-              <button
-                onClick={() => { cancel(); setFile(null); setPreview(''); setEvents([]); setStatus('idle') }}
-                className="shrink-0 rounded-[var(--radius)] p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="移除图片"
-              >
-                <XIcon className="size-4" />
-              </button>
             </div>
-            <div className="flex min-h-[380px] items-center justify-center bg-muted p-4">
-              <img
-                src={preview}
-                alt="待检测单据"
-                className="max-h-[560px] max-w-full object-contain"
-                onLoad={(e) => setDims({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-              />
-            </div>
-          </div>
+            {cv && <CompareSlider original={cv.original} heatmap={cv.heatmap} />}
+          </>
         )}
 
         <input
@@ -115,53 +188,31 @@ export default function DetectPage() {
           onChange={(e) => accept(e.target.files?.[0])}
         />
 
-        {/* 模式选择 —— 静态单选，不用下拉，三个选项值得直接摊开 */}
-        <fieldset className="rounded-[var(--radius)] border border-border bg-card p-3">
-          <legend className="px-1 text-xs text-muted-foreground">复核模式</legend>
-          <div className="flex flex-col gap-1">
-            {MODES.map((m) => (
-              <label
-                key={m.id}
-                className={`flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] px-2.5 py-2 text-sm ${
-                  mode === m.id ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="mode"
-                  value={m.id}
-                  checked={mode === m.id}
-                  disabled={status === 'running'}
-                  onChange={() => setMode(m.id)}
-                  className="mt-1 accent-[var(--accent)]"
-                />
-                <span className="min-w-0">
-                  <span className="block font-medium">{m.label}</span>
-                  <span className="block text-xs text-muted-foreground">{m.hint}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="flex items-center gap-3">
-          {status === 'running' ? (
-            <Button variant="outline" onClick={cancel}>中止检测</Button>
-          ) : (
-            <Button disabled={!file} onClick={start}>开始检测</Button>
-          )}
-          {file && status === 'idle' && (
-            <span className="text-xs text-muted-foreground">预计{etaHint}</span>
-          )}
-          {status === 'running' && (
-            <span className="text-xs text-muted-foreground">检测中，{etaHint}</span>
-          )}
-          {status === 'done' && (
-            <span className="num text-xs text-muted-foreground">
-              完成，耗时 {(durationMs / 1000).toFixed(1)}s
-            </span>
-          )}
-        </div>
+        {!file && (
+          /* 未选图时模式选择摊开展示，此时版面空着，正好交代三种模式的差别 */
+          <fieldset className="rounded-[var(--radius)] border border-border bg-card p-3">
+            <legend className="px-1 text-xs text-muted-foreground">复核模式</legend>
+            <div className="flex flex-col gap-1">
+              {MODES.map((m) => (
+                <label
+                  key={m.id}
+                  className={`flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] px-2.5 py-2 text-sm ${
+                    mode === m.id ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted'
+                  }`}
+                >
+                  <input
+                    type="radio" name="mode-full" value={m.id} checked={mode === m.id}
+                    onChange={() => setMode(m.id)} className="mt-1 accent-[var(--accent)]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-medium">{m.label}</span>
+                    <span className="block text-xs text-muted-foreground">{m.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
 
         {error && (
           <div className="rounded-[var(--radius)] border border-danger bg-danger-bg px-4 py-3 text-sm text-danger">
@@ -177,17 +228,10 @@ export default function DetectPage() {
             上传单据后开始检测，此处显示审核结论与复核轨迹。
           </div>
         )}
-        {cv && (
-          <div className="num rounded-[var(--radius)] border border-border bg-card px-4 py-3 text-sm">
-            CV 置信度 {cv.score.toFixed(4)} · 推理尺寸 {cv.infer_size} · 候选区 {cv.candidates.length}
-          </div>
-        )}
-        {verdict && (
-          <div className="rounded-[var(--radius)] border border-border bg-card px-4 py-3 text-sm">
-            {verdict.headline ?? verdict.text}
-          </div>
-        )}
-        <TraceView events={events} running={status === 'running'} />
+        {/* 渐进式披露：结论永远可见 → 轨迹默认展开 → 技术细节默认收起 */}
+        {verdict && <VerdictCard payload={verdict} />}
+        <TraceView events={events} running={status === "running"} mode={mode} />
+        {cv && <TechDetails cv={cv} durationMs={durationMs} />}
       </section>
     </div>
   )

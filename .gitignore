@@ -84,3 +84,4 @@ flagged/
 .env
 .env.local
 .superpowers/
+web/test-results/

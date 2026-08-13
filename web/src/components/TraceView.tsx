@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  AlertTriangleIcon, BrainIcon, ChevronDownIcon, ScanSearchIcon,
+  AlertTriangleIcon, BrainIcon, ChevronDownIcon, CircleDashedIcon, ScanSearchIcon,
   SearchIcon, WrenchIcon,
 } from 'lucide-react'
 import {
@@ -55,10 +55,22 @@ function secs(ms: number) {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-export function TraceView({ events, running }: { events: TraceEvent[]; running: boolean }) {
+/** 等待期把整条流程摊开（spec §6.3）：只显示一个转圈会让人不知道还剩几步 */
+const PLAN: Record<string, string[]> = {
+  agent: ['像素级取证（TruFor）', '大模型研判可疑区域', '调用工具放大查证', '出具审核结论'],
+  direct: ['像素级取证（TruFor）', '大模型单轮判读', '出具审核结论'],
+  cv: ['像素级取证（TruFor）', '按阈值给出判定'],
+}
+
+export function TraceView(
+  { events, running, mode }: { events: TraceEvent[]; running: boolean; mode: string },
+) {
   // verdict 交给 VerdictCard，cv 交给 TechDetails，此处只渲染过程
   const steps = events.filter((e) => e.type !== 'verdict' && e.type !== 'cv')
   if (steps.length === 0 && !running) return null
+
+  const hasCv = events.some((e) => e.type === 'cv')
+  const plan = PLAN[mode] ?? PLAN.agent
 
   return (
     <div className="rounded-[var(--radius)] border border-border bg-card">
@@ -156,13 +168,19 @@ export function TraceView({ events, running }: { events: TraceEvent[]; running: 
           })}
 
           {running && (
-            /* 等待期占位：静态字形 + 文字，不用动画点/脉冲圆（禁令 4） */
-            <ChainOfThoughtStep
-              icon={BrainIcon}
-              label={steps.length === 0 ? '像素级取证中…' : '大模型复核中…'}
-              description="完成后此处会追加下一步"
-              status="pending"
-            />
+            /* 等待期占位：静态字形 + 文字，不用动画点/脉冲圆（禁令 4）。
+               当前步骤 active，后续步骤 pending 淡显，让人知道还剩几步。 */
+            <>
+              <ChainOfThoughtStep
+                icon={hasCv ? BrainIcon : ScanSearchIcon}
+                label={hasCv ? '大模型复核中…' : '像素级取证中…'}
+                description="正在进行"
+                status="active"
+              />
+              {plan.slice(hasCv ? 2 : 1).map((s) => (
+                <ChainOfThoughtStep key={s} icon={CircleDashedIcon} label={s} status="pending" />
+              ))}
+            </>
           )}
         </ChainOfThought>
       </div>
