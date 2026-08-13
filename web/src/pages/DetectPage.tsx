@@ -3,6 +3,7 @@ import { FileImageIcon, UploadIcon, XIcon } from 'lucide-react'
 import { runDetection } from '@/lib/sse'
 import type { CvPayload, TraceEvent, VerdictPayload } from '@/lib/types'
 import { Button } from '@/components/ui/button'
+import { TraceView } from '@/components/TraceView'
 
 type Status = 'idle' | 'running' | 'done' | 'error'
 
@@ -186,11 +187,7 @@ export default function DetectPage() {
             {verdict.headline ?? verdict.text}
           </div>
         )}
-        {events.length > 0 && (
-          <div className="rounded-[var(--radius)] border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
-            已收到 {events.length} 个事件：{events.map((e) => e.type).join(' → ')}
-          </div>
-        )}
+        <TraceView events={events} running={status === 'running'} />
       </section>
     </div>
   )
