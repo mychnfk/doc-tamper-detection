@@ -1,0 +1,51 @@
+@import "tailwindcss";
+/* Vite 默认模板的 index.css 已整体删除：它定义了同名的 --text/--bg/--border/--accent，
+   且取值一次踩中 spec §5.1 的五条禁令（见 DESIGN.md §3）。
+   同名变量共存时靠 import 顺序决胜，会静默污染，故不保留。 */
+@import "./lib/design-tokens.css";
+
+/* 采用 shadcn 的语义命名作为消费层，design-tokens.css 是底层真源。
+   这样 vendored 组件（badge/button/collapsible/ai-elements）零改动即用我们的配色，
+   自研组件也用同一套名字，不存在两套命名。
+   ⚠️ shadcn 的 accent = 悬停浅底、muted = 浅灰底，都不是"强调色/次要文字色"，
+      映射错会让 hover 变深蓝实底。品牌色一律走 primary。 */
+@theme {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--text);
+
+  --color-primary: var(--accent);              /* 全站唯一品牌强调色 */
+  --color-primary-foreground: var(--surface);
+  --color-secondary: var(--accent-weak);
+  --color-secondary-foreground: var(--accent);
+
+  --color-muted: var(--surface-sunk);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--surface-sunk);         /* shadcn 语义：hover 底色 */
+  --color-accent-foreground: var(--text);
+
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--surface);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  /* 风险三态 —— shadcn 无对应语义，属项目扩展；用于数据编码，不参与品牌配色 */
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger-bg: var(--danger-bg);
+
+  --radius-token: var(--radius);
+
+  --font-sans: var(--font-cn), var(--font-en);
+  --font-mono: var(--font-mono);
+}

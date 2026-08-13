@@ -1,0 +1,53 @@
+/* DocGuard 设计令牌 — 唯一真源。任何组件不得硬编码颜色/间距/圆角。
+   remix: Linear(中性色/间距纪律) × Stripe(强调色/金融语义) — 见 web/DESIGN.md */
+:root {
+  /* 中性 —— 底色为微暖 off-white，禁用纯白 #FFF */
+  --bg:          #FAFAF8;
+  --surface:     #FFFFFF;   /* 仅用于内容卡面，不作页面底色 */
+  --surface-sunk:#F1F0EC;   /* 凹陷底：代码块、hover 态、次要区块 */
+  --border:      #E4E3DE;
+  --border-strong:#CFCEC7;
+  --text:        #1C1C1A;
+  --text-muted:  #6B6B66;
+
+  /* 唯一强调色 —— 全站只有这一个，不得引入第二个 */
+  --accent:      #1B3A5C;
+  --accent-weak: #E8EDF3;
+
+  /* 语义色（数据编码，非品牌强调色） */
+  --ok:      #2F6B4F;
+  --warn:    #8A6A1F;
+  --danger:  #8C3A32;
+  --ok-bg:   #EDF3EF;
+  --warn-bg: #F5F0E4;
+  --danger-bg:#F6EBE9;
+
+  /* 间距 4px 基准 */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s6: 24px; --s8: 32px; --s12: 48px;
+
+  --radius: 4px;
+
+  --font-cn: 'HarmonyOS Sans SC', sans-serif;
+  --font-en: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+html { background: var(--bg); color: var(--text); }
+body { font-family: var(--font-cn), var(--font-en); margin: 0; }
+
+/* 数字一律等宽对齐——分数/坐标/耗时要能上下对齐 */
+.num, table td, table th { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+
+/* 层次一律靠 border 或色调差，全站禁用 drop shadow。
+   只清 --tw-shadow：Tailwind 的焦点环走 --tw-ring-shadow，同样是 box-shadow 实现，
+   若用 `box-shadow: none !important` 一刀切会连键盘 Tab 的焦点指示一起干掉。 */
+* { --tw-shadow: 0 0 #0000 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
