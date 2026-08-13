@@ -73,7 +73,9 @@ MODE_MAP = {'Agent 复核（推荐）': 'agent', '快速复核': 'direct', '仅 
 
 # ─── 主流程（生成器：流式驱动三栏）───────────────────────────────────
 def analyze(image_path, mode_label):
-    chat = [{"role": "assistant", "content": "🔬 阶段一：像素级取证中（TruFor）…"}]
+    _tiled = max(Image.open(image_path).size) > config.MAX_SIZE   # 大图走切片，耗时量级差 8 倍
+    _hint = "大图需切片推理，约需 1-2 分钟" if _tiled else "约需 10 秒"
+    chat = [{"role": "assistant", "content": f"🔬 阶段一：像素级取证中（TruFor）——{_hint}…"}]
     yield None, None, "", "", chat
 
     result = run_single(MODEL, image_path, DEVICE, max_size=config.MAX_SIZE)
@@ -102,7 +104,12 @@ def analyze(image_path, mode_label):
         if ev.type == 'stage':
             continue
         if ev.type == 'verdict':
-            chat.append({"role": "assistant", "content": ev.payload['text']})
+            if ev.payload.get('headline'):      # agent 链路有结构化结论：一句话结论 + 依据折叠
+                chat.append({"role": "assistant", "content": ev.payload['headline']})
+                chat.append({"role": "assistant", "content": ev.payload['detail'],
+                             "metadata": {"title": "📋 为什么这么判", "status": "done"}})
+            else:                               # direct/cv 链路无结构化字段，按原样整段呈现
+                chat.append({"role": "assistant", "content": ev.payload['text']})
         elif ev.type == 'tool_result':
             body = ev.payload['text']
             chat.append({"role": "assistant", "content": body,

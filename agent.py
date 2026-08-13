@@ -34,8 +34,11 @@ class ProtocolError(Exception):
 
 # ─── VLM 调用封装 ───────────────────────────────────────────────────
 def image_to_base64(img):
+    img = img.convert("RGB")            # 同模式也返回副本，thumbnail 不会污染调用方
+    if max(img.size) > config.VLM_MAX_SIZE:     # VLM 只做语义理解；取证走 TruFor，不经此路径
+        img.thumbnail((config.VLM_MAX_SIZE, config.VLM_MAX_SIZE))
     buf = io.BytesIO()
-    img.convert("RGB").save(buf, format="JPEG", quality=85)
+    img.save(buf, format="JPEG", quality=85)
     return base64.b64encode(buf.getvalue()).decode()
 
 
@@ -139,6 +142,15 @@ def format_verdict(v):
             f"**建议操作**：{v.get('advice', '')}")
 
 
+def split_verdict(v):
+    """拆成「一句话结论」与「可展开详情」供 UI 用；format_verdict 的全文契约不变"""
+    emoji = RISK_EMOJI.get(v.get("risk", ""), "⚪")
+    headline = f"### {emoji} {v.get('conclusion', '')}（风险：{v.get('risk', '—')}）\n\n**建议操作**：{v.get('advice', '')}"
+    detail = (f"**异常区域**：{v.get('regions', '无')}\n\n"
+              f"**复核依据**：{v.get('basis', '')}")
+    return headline, detail
+
+
 # ─── 直链回退（自 app.py 迁移，初复赛实战验证过的路径）────────────────
 DIRECT_SYSTEM_PROMPT = """你是金融文档审核 AI 助手。当前日期：{today}。你将收到：
 1. 一张待审核的金融文档图片（原图）
@@ -226,7 +238,9 @@ def _agent_loop(ctx, tools, vlm):
             if not isinstance(v, dict):
                 v = {"conclusion": "无法判定", "risk": "中",
                      "regions": "—", "basis": "模型未给出结构化结论", "advice": "建议人工审核"}
+            _headline, _detail = split_verdict(v)
             yield TraceEvent(turn, "verdict", {"verdict": v, "text": format_verdict(v),
+                                               "headline": _headline, "detail": _detail,
                                                "source": "agent-forced" if forced else "agent"})
             return
 

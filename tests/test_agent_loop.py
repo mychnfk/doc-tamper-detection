@@ -52,6 +52,20 @@ def test_investigate_then_verdict():
     assert "疑似篡改" in evs[-1].payload["text"]
 
 
+def test_verdict_splits_headline_and_detail():
+    """UI 按 headline 是否存在决定「一句话+折叠」还是整段渲染；text/verdict 旧契约不得动"""
+    evs = list(review(_ctx(), [FakeTool()], mode="agent",
+                      vlm=_scripted_vlm([INVESTIGATE, VERDICT])))
+    p = evs[-1].payload
+    assert "疑似篡改" in p["headline"] and "人工核实" in p["headline"]   # 结论+建议一眼可见
+    assert "字体不一致" in p["detail"] and "字体不一致" not in p["headline"]  # 依据只在折叠里
+    assert p["text"] and isinstance(p["verdict"], dict)                # evaluate.py 消费的两个键
+
+    dead = list(review(_ctx(score=0.85), [FakeTool()], mode="agent",
+                       vlm=_scripted_vlm(["不是 json", "不是 json", "不是 json"])))
+    assert "headline" not in dead[-1].payload      # 无结构化结论时不得伪造，UI 回退整段
+
+
 def test_max_turns_forces_verdict():
     evs = list(review(_ctx(), [FakeTool()], mode="agent",
                       vlm=_scripted_vlm([INVESTIGATE, INVESTIGATE, INVESTIGATE, VERDICT])))
