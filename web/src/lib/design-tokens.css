@@ -44,6 +44,20 @@ body { font-family: var(--font-cn), var(--font-en); margin: 0; }
    若用 `box-shadow: none !important` 一刀切会连键盘 Tab 的焦点指示一起干掉。 */
 * { --tw-shadow: 0 0 #0000 !important; }
 
+/* 动效预算（spec §5.2）：全站只有这两处，其余一律静态。
+   自己写而不是装 tailwindcss-animate——插件的默认时长远超预算，且会顺带引入
+   一堆我们禁用的入场动画类。 */
+@keyframes dg-step-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes dg-verdict-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.dg-step    { animation: dg-step-in 160ms ease-out both; }
+.dg-verdict { animation: dg-verdict-in 200ms ease-out both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
