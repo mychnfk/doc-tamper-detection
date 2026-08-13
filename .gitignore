@@ -42,6 +42,13 @@ eval-images/**/*.tiff
 eval-images/**/*.bmp
 eval-images/**/*.pdf
 
+# 检测记录（含真实业务单据原图，严禁入库）
+runs/
+
+# 前端构建产物
+web/node_modules/
+web/dist/
+
 # TruFor (external dependency, clone separately)
 TruFor/
 
