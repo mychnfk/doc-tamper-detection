@@ -127,10 +127,13 @@ def test_save_image_returns_relative_path_and_writes_file():
 
 
 def test_list_runs_sorted_newest_first():
-    for name in ("a.jpg", "b.jpg"):
-        rid = runs_store.new_run_id()
-        runs_store.create_run(rid, name, "cv")
-        runs_store.finalize_run(rid, score=0.5)
+    # 显式指定 created_at——两条记录若在同一秒创建，时间戳相同则排序不确定，会成为 flaky test
+    older = runs_store.new_run_id()
+    runs_store.create_run(older, "a.jpg", "cv")
+    runs_store.finalize_run(older, created_at="2026-08-13T10:00:00", score=0.5)
+    newer = runs_store.new_run_id()
+    runs_store.create_run(newer, "b.jpg", "cv")
+    runs_store.finalize_run(newer, created_at="2026-08-13T11:00:00", score=0.5)
     names = [m["image_name"] for m in runs_store.list_runs()]
     assert names == ["b.jpg", "a.jpg"]
 
@@ -626,22 +629,52 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'api'`
 import json
 import os
 import tempfile
+import threading
 import time
+from contextlib import asynccontextmanager
 
+import anyio
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 
+import config
 import pipeline
 import runs_store
 from pipeline import get_runtime
+from run_inference import run_single
 
 register_heif_opener()                      # 评委 iPhone HEIC 直传
 
-app = FastAPI(title="DocGuard API")
-
 VALID_MODES = ("agent", "direct", "cv")
+
+# 单模型实例，请求必须串行——并发使用同一个 MPS 模型会出问题（spec §8）。
+# 对应 Gradio 版的 queue(default_concurrency_limit=1) 语义。
+_DETECT_LOCK = threading.Lock()
+
+
+def _warmup():
+    """启动即加载模型并跑一次 256x256，把首次开销提前消化掉。
+    对齐 app.py::_warmup() 的行为——否则评委的第一次检测要多等约 5 秒。"""
+    model, device, _ = get_runtime()
+    tiny = os.path.join(tempfile.gettempdir(), "docguard_warmup.png")
+    Image.new("RGB", (256, 256), "white").save(tiny)
+    run_single(model, tiny, device, max_size=config.MAX_SIZE)
+    if device == "mps":
+        import torch
+        torch.mps.empty_cache()
+    print("Warmup done.", flush=True)
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    # 只在真正起服务时预热；TestClient 非上下文管理器用法不触发 lifespan，故测试不受影响
+    await anyio.to_thread.run_sync(_warmup)
+    yield
+
+
+app = FastAPI(title="DocGuard API", lifespan=lifespan)
 
 
 def serialize_event(run_id, ev, elapsed_ms):
@@ -682,32 +715,34 @@ async def detect(file: UploadFile = File(...), mode: str = Form("agent")):
 
     def stream():
         started = time.monotonic()
-        model, device, tools = get_runtime()
         meta_updates = {}
         try:
-            for kind, item in pipeline.run_detection(tmp.name, mode, model=model,
-                                                     device=device, tools=tools):
-                elapsed = int((time.monotonic() - started) * 1000)
-                if kind == "cv":
-                    runs_store.save_image(run_id, "original.jpg", item["original"])
-                    runs_store.save_image(run_id, "heatmap.jpg", item["heatmap"])
-                    runs_store.save_image(run_id, "confidence.jpg", item["confidence"])
-                    data = {"run_id": run_id, "turn": 0, "type": "cv", "elapsed_ms": elapsed,
-                            "payload": {"score": item["score"], "infer_size": item["infer_size"],
-                                        "candidates": item["candidates"],
-                                        "original": f"/api/runs/{run_id}/original.jpg",
-                                        "heatmap": f"/api/runs/{run_id}/heatmap.jpg",
-                                        "confidence": f"/api/runs/{run_id}/confidence.jpg"}}
-                    meta_updates.update(score=item["score"], infer_size=item["infer_size"])
-                else:
-                    data = serialize_event(run_id, item, elapsed)
-                    if item.type == "verdict":
-                        v = item.payload.get("verdict") or {}
-                        meta_updates.update(conclusion=v.get("conclusion", ""),
-                                            risk=v.get("risk", ""),
-                                            source=item.payload.get("source", ""))
-                runs_store.append_event(run_id, data, elapsed)     # 落盘先于推送
-                yield _sse("trace", data)
+            # 锁必须覆盖整个流式过程，而不只是取 runtime——否则两个请求会并发用同一个 MPS 模型
+            with _DETECT_LOCK:
+                model, device, tools = get_runtime()
+                for kind, item in pipeline.run_detection(tmp.name, mode, model=model,
+                                                         device=device, tools=tools):
+                    elapsed = int((time.monotonic() - started) * 1000)
+                    if kind == "cv":
+                        runs_store.save_image(run_id, "original.jpg", item["original"])
+                        runs_store.save_image(run_id, "heatmap.jpg", item["heatmap"])
+                        runs_store.save_image(run_id, "confidence.jpg", item["confidence"])
+                        data = {"run_id": run_id, "turn": 0, "type": "cv", "elapsed_ms": elapsed,
+                                "payload": {"score": item["score"], "infer_size": item["infer_size"],
+                                            "candidates": item["candidates"],
+                                            "original": f"/api/runs/{run_id}/original.jpg",
+                                            "heatmap": f"/api/runs/{run_id}/heatmap.jpg",
+                                            "confidence": f"/api/runs/{run_id}/confidence.jpg"}}
+                        meta_updates.update(score=item["score"], infer_size=item["infer_size"])
+                    else:
+                        data = serialize_event(run_id, item, elapsed)
+                        if item.type == "verdict":
+                            v = item.payload.get("verdict") or {}
+                            meta_updates.update(conclusion=v.get("conclusion", ""),
+                                                risk=v.get("risk", ""),
+                                                source=item.payload.get("source", ""))
+                    runs_store.append_event(run_id, data, elapsed)     # 落盘先于推送
+                    yield _sse("trace", data)
 
             meta_updates["duration_ms"] = int((time.monotonic() - started) * 1000)
             runs_store.finalize_run(run_id, **meta_updates)
