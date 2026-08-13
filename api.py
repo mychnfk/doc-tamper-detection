@@ -1,6 +1,7 @@
 # api.py — FastAPI：检测 SSE + 记录 REST
 import json
 import os
+import pathlib
 import tempfile
 import threading
 import time
@@ -8,7 +9,7 @@ from contextlib import asynccontextmanager
 
 import anyio
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 
@@ -131,3 +132,64 @@ async def detect(file: UploadFile = File(...), mode: str = Form("agent")):
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# ---- 记录模块 + 静态托管 ----
+# 路由顺序有讲究：/api/runs/{run_id}/{rel_path} 必须在 /api/runs/{run_id} 之后，
+# catch-all 的 /{full_path:path} 必须在文件最末，否则会吞掉所有 API 路由。
+
+WEB_DIST = pathlib.Path(__file__).parent / "web" / "dist"
+
+
+def _safe_child(base, rel_path):
+    """把 rel_path 解析到 base 之下；越界或不是文件则返回 None。
+    用 is_relative_to 而非字符串 startswith——后者会让 runs/abc 读到 runs/abcdef。"""
+    base = base.resolve()
+    target = (base / rel_path).resolve()
+    return target if target.is_relative_to(base) and target.is_file() else None
+
+
+@app.get("/api/runs")
+def list_runs():
+    return {"runs": runs_store.list_runs()}
+
+
+@app.get("/api/runs/{run_id}")
+def read_run(run_id: str):
+    try:
+        return runs_store.read_run(run_id)
+    except KeyError:
+        raise HTTPException(404, f"记录不存在：{run_id}")
+
+
+@app.delete("/api/runs/{run_id}")
+def delete_run(run_id: str):
+    try:
+        runs_store.delete_run(run_id)
+    except KeyError:
+        raise HTTPException(404, f"记录不存在：{run_id}")
+    return {"deleted": run_id}
+
+
+@app.get("/api/runs/{run_id}/{rel_path:path}")
+def run_file(run_id: str, rel_path: str):
+    target = _safe_child(runs_store.RUNS_DIR / run_id, rel_path)
+    if target is None:
+        raise HTTPException(404, "文件不存在")
+    return FileResponse(target)
+
+
+@app.get("/")
+@app.get("/{full_path:path}")
+def spa(full_path: str = ""):
+    """托管前端构建产物；未构建时给出可操作提示而不是 500。"""
+    if full_path.startswith("api/"):
+        raise HTTPException(404, "未知的 API 路径")
+    asset = _safe_child(WEB_DIST, full_path) if full_path else None
+    if asset is not None:
+        return FileResponse(asset)
+    index = WEB_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    return HTMLResponse("<h1>前端尚未构建</h1><p>请先执行 <code>cd web &amp;&amp; npm run build</code></p>",
+                        status_code=200)
