@@ -126,9 +126,9 @@ export default function DetectPage() {
                       <label
                         key={m.id}
                         title={m.hint}
-                        className={`cursor-pointer rounded-[var(--radius)] border px-2.5 py-1.5 text-sm ${
+                        className={`cursor-pointer rounded-[var(--radius)] border px-2.5 py-1.5 text-sm transition-colors ${
                           mode === m.id
-                            ? 'border-primary bg-secondary text-secondary-foreground'
+                            ? 'border-primary bg-primary text-primary-foreground'
                             : 'border-border hover:bg-muted'
                         }`}
                       >
@@ -158,7 +158,7 @@ export default function DetectPage() {
                   ) : (
                     <>
                       <span className="text-xs text-muted-foreground">预计{etaHint}</span>
-                      <Button size="sm" onClick={start}>开始检测</Button>
+                      <Button onClick={start}>开始检测</Button>
                     </>
                   )}
                 </div>
