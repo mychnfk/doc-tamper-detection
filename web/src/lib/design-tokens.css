@@ -5,14 +5,14 @@
   --bg:          #FAFAF8;
   --surface:     #FFFFFF;   /* 仅用于内容卡面，不作页面底色 */
   --surface-sunk:#F1F0EC;   /* 凹陷底：代码块、hover 态、次要区块 */
-  --border:      #E4E3DE;
-  --border-strong:#CFCEC7;
+  --border:      #D8D7D0;   /* 加深 1 档，确保虚线可见 */
+  --border-strong:#B8B7AE;  /* 加深 2 档 */
   --text:        #1C1C1A;
-  --text-muted:  #6B6B66;
+  --text-muted:  #5A5A55;   /* 加深 1 档，WCAG AA 达标 */
 
   /* 唯一强调色 —— 全站只有这一个，不得引入第二个 */
   --accent:      #1B3A5C;
-  --accent-weak: #E8EDF3;
+  --accent-weak: #D4DCE6;   /* 加深 1 档，让选中态更明显 */
 
   /* 语义色（数据编码，非品牌强调色） */
   --ok:      #2F6B4F;
