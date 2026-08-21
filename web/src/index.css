@@ -46,6 +46,6 @@
 
   --radius-token: var(--radius);
 
-  --font-sans: var(--font-cn), var(--font-en);
+  --font-sans: var(--font-en), var(--font-cn);   /* en 在前，理由见 design-tokens.css */
   --font-mono: var(--font-mono);
 }
