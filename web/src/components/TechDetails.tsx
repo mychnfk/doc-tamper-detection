@@ -17,7 +17,7 @@ export function TechDetails({ cv, durationMs }: { cv: CvPayload; durationMs: num
         <ChevronDownIcon className={`size-4 shrink-0 text-muted-foreground ${open ? 'rotate-180' : '-rotate-90'}`} />
         <span className="font-medium">技术细节</span>
         <span className="num min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          分数 {cv.score.toFixed(4)} · {cv.infer_size} · 候选区 {cv.candidates.length}
+          篡改评分 {cv.score.toFixed(4)} · {cv.infer_size} · 候选区 {cv.candidates.length}
           {durationMs > 0 && ` · 总耗时 ${(durationMs / 1000).toFixed(1)}s`}
         </span>
       </button>
@@ -26,7 +26,7 @@ export function TechDetails({ cv, durationMs }: { cv: CvPayload; durationMs: num
         <div className="space-y-4 border-t border-border px-4 py-4">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
             <div>
-              <dt className="text-xs text-muted-foreground">CV 置信度</dt>
+              <dt className="text-xs text-muted-foreground">CV 篡改评分（0=正常 1=篡改）</dt>
               <dd className="num">{cv.score.toFixed(4)}</dd>
             </div>
             <div>

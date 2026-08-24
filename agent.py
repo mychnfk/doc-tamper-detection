@@ -196,7 +196,7 @@ def _cv_only_verdict(ctx):
         label, risk = "疑似异常", "中"
     else:
         label, risk = "未见明显篡改", "低"
-    text = (f"### 审核结论：{label}\n\n**CV 置信度分数**：{ctx.score:.4f}\n\n"
+    text = (f"### 审核结论：{label}\n\n**CV 篡改评分**：{ctx.score:.4f}（0=正常，1=篡改）\n\n"
             f"**风险等级**：{RISK_EMOJI[risk]} {risk}\n\n"
             f"（AI 复核暂不可用，以上为 CV 工具独立判定，建议结合人工审核）")
     return {"verdict": None, "text": text, "source": "cv"}
