@@ -2,6 +2,7 @@
 import json
 import os
 import pathlib
+import queue
 import tempfile
 import threading
 import time
@@ -89,11 +90,16 @@ async def detect(file: UploadFile = File(...), mode: str = Form("agent")):
     run_id = runs_store.new_run_id()
     runs_store.create_run(run_id, file.filename or "unnamed", mode)
 
-    def stream():
+    # 检测在独立线程里跑完，SSE 协程只消费队列。检测与推送必须解耦：
+    # 若把检测写成同步生成器直接交给 StreamingResponse，客户端中止/刷新后
+    # 生成器会永远停在 yield 上没人驱动，_DETECT_LOCK 随之永不释放，
+    # 后续所有检测无限排队（8-21 与 8-24 两次僵尸事故的根因）。
+    # 断开后检测照常跑完并落盘，结果仍可在「记录」页回放。
+    def produce(q):
         started = time.monotonic()
         meta_updates = {}
         try:
-            # 锁必须覆盖整个流式过程，而不只是取 runtime——否则两个请求会并发用同一个 MPS 模型
+            # 锁必须覆盖整个检测过程，而不只是取 runtime——否则两个请求会并发用同一个 MPS 模型
             with _DETECT_LOCK:
                 model, device, tools = get_runtime()
                 for kind, item in pipeline.run_detection(tmp.name, mode, model=model,
@@ -120,18 +126,35 @@ async def detect(file: UploadFile = File(...), mode: str = Form("agent")):
                                                 risk=v.get("risk", ""),
                                                 source=item.payload.get("source", ""))
                     runs_store.append_event(run_id, data, elapsed)     # 落盘先于推送
-                    yield _sse("trace", data)
+                    q.put(_sse("trace", data))
 
             meta_updates["duration_ms"] = int((time.monotonic() - started) * 1000)
             runs_store.finalize_run(run_id, **meta_updates)
-            yield _sse("done", {"run_id": run_id, "duration_ms": meta_updates["duration_ms"]})
+            q.put(_sse("done", {"run_id": run_id, "duration_ms": meta_updates["duration_ms"]}))
         except Exception as e:                                     # noqa: BLE001 — 兜底转 SSE，不让连接裸断
             runs_store.finalize_run(run_id, error=str(e),
                                     duration_ms=int((time.monotonic() - started) * 1000))
-            yield _sse("error", {"message": f"检测过程出错：{e}"})
+            q.put(_sse("error", {"message": f"检测过程出错：{e}"}))
         finally:
             if os.path.exists(tmp.name):
                 os.unlink(tmp.name)
+            q.put(None)                                            # 结束哨兵
+
+    frames = queue.Queue()
+    threading.Thread(target=produce, args=(frames,), daemon=True).start()
+
+    async def stream():
+        # 轮询而非 to_thread 阻塞取——断开时协程能被立即取消，不留被弃置的工作线程。
+        # 事件间隔以秒计，150ms 轮询的延迟感知不到。
+        while True:
+            try:
+                frame = frames.get_nowait()
+            except queue.Empty:
+                await anyio.sleep(0.15)
+                continue
+            if frame is None:
+                break
+            yield frame
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

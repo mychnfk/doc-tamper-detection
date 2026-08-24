@@ -82,7 +82,7 @@ def build_system_prompt(tools):
     tool_lines = "\n".join(
         f"- {t.name}: {t.description}\n  参数: {t.args_hint}" for t in tools)
     return f"""你是金融文档审核 AI Agent。当前日期：{date.today().isoformat()}。
-你先收到 CV 篡改检测工具（TruFor）的首检结果（热力图、置信度分数、可疑区域候选框），\
+你先收到 CV 篡改检测工具（TruFor）的首检结果（热力图、篡改评分、可疑区域候选框），\
 你的职责是像审核员一样层层求证，最终给出财务人员可执行的审核结论。
 
 可用工具：
@@ -96,7 +96,7 @@ def build_system_prompt(tools):
  "verdict": {{"conclusion": "正常/疑似篡改/高度可疑/无法审核(非金融单据)",
              "risk": "低/中/高",
              "regions": "异常区域及内容，无则写'无'",
-             "basis": "复核依据（大白话描述你看到的具体证据；不得出现'CV/TruFor/模型/置信度/热力图/误报'等系统内部术语或原始分数数字）",
+             "basis": "复核依据（大白话描述你看到的具体证据；不得出现'CV/TruFor/模型/置信度/评分/热力图/误报'等系统内部术语或原始分数数字）",
              "advice": "建议操作"}}}}
 ```
 decision=investigate 时必须给 action 且不给 verdict；decision=verdict 时必须给 verdict。
@@ -114,7 +114,7 @@ def build_first_user_content(ctx):
     tiled_note = ("\n注意：该图超出单次推理上限，为切片推理结果，全局分数可信度较低，"
                   "建议对关键区域放大查证。") if ctx.tiled else ""
     return [
-        {"text": f"CV 首检结果——整体篡改置信度：{ctx.score:.4f}（0=正常 1=篡改），"
+        {"text": f"CV 首检结果——整体篡改评分：{ctx.score:.4f}（0=正常 1=篡改），"
                  f"推理尺寸：{ctx.infer_size}。{tiled_note}\n可疑区域候选框（0-1000 归一化）：\n{cand}"},
         {"text": "【原始文档图片】"},
         {"image": f"data:image/jpeg;base64,{image_to_base64(ctx.original_img)}"},
@@ -155,7 +155,7 @@ def split_verdict(v):
 DIRECT_SYSTEM_PROMPT = """你是金融文档审核 AI 助手。当前日期：{today}。你将收到：
 1. 一张待审核的金融文档图片（原图）
 2. CV 篡改检测工具的分析结果（热力图，红色=可疑区域）
-3. CV 工具给出的篡改置信度分数（0-1，越高越可疑）
+3. CV 工具给出的篡改评分（0-1，越高越可疑）
 
 请执行以下复核流程：
 
@@ -178,7 +178,7 @@ def direct_review(ctx):
     messages = [
         {"role": "system", "content": [{"text": DIRECT_SYSTEM_PROMPT.format(today=date.today().isoformat())}]},
         {"role": "user", "content": [
-            {"text": f"CV 篡改检测置信度分数：{ctx.score:.4f}（0=正常，1=篡改）\n\n请对以下文档进行复核审查："},
+            {"text": f"CV 篡改评分：{ctx.score:.4f}（0=正常，1=篡改）\n\n请对以下文档进行复核审查："},
             {"text": "【原始文档图片】"},
             {"image": f"data:image/jpeg;base64,{image_to_base64(ctx.original_img)}"},
             {"text": "【CV 检测热力图（红色=可疑区域）】"},
