@@ -1,0 +1,15 @@
+{
+  "tolerance": 0.02,
+  "images": [
+    {
+      "path": "baseline/normal_55_237.jpg",
+      "expected": 0.1138,
+      "note": "未篡改小图(整图推理)"
+    },
+    {
+      "path": "baseline/tiled_check.jpg",
+      "expected": 0.2347,
+      "note": "3456x4608大图(30片切片推理)"
+    }
+  ]
+}

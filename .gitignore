@@ -85,3 +85,8 @@ flagged/
 .env.local
 .superpowers/
 web/test-results/
+
+# 部署基线图（真实业务单据，只进离线包不进仓库）
+deploy/baseline/
+# 打包产物
+dist-package/
