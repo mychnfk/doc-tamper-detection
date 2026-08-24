@@ -1,0 +1,110 @@
+/* DocGuard 设计令牌 — 唯一真源。任何组件不得硬编码颜色/间距/圆角。
+   remix: Linear(中性色/间距纪律) × Stripe(强调色/金融语义) — 见 web/DESIGN.md */
+
+/* 字体自托管，不走 CDN——演示机可能无外网。
+   生成: web/scripts/build-fonts.sh（下载 → GB2312 子集化 → woff2）
+   中文只出 400/500 两个字重：全站 font-medium×13 / font-normal×5，
+   唯一的 font-semibold 来自 vendored badge.tsx 的默认类（text-xs 小字），
+   不值得为它多打 950KB 的 Bold，交给 500 承接。 */
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/harmonyos-sans-sc-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('/fonts/harmonyos-sans-sc-500.woff2') format('woff2');
+  font-weight: 500 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/ibm-plex-sans-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/ibm-plex-sans-500.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/ibm-plex-sans-600.woff2') format('woff2');
+  font-weight: 600 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
+:root {
+  /* 中性 —— 底色为微暖 off-white，禁用纯白 #FFF */
+  --bg:          #FAFAF8;
+  --surface:     #FFFFFF;   /* 仅用于内容卡面，不作页面底色 */
+  --surface-sunk:#F1F0EC;   /* 凹陷底：代码块、hover 态、次要区块 */
+  --border:      #D8D7D0;   /* 加深 1 档，确保虚线可见 */
+  --border-strong:#B8B7AE;  /* 加深 2 档 */
+  --text:        #1C1C1A;
+  --text-muted:  #5A5A55;   /* 加深 1 档，WCAG AA 达标 */
+
+  /* 唯一强调色 —— 全站只有这一个，不得引入第二个 */
+  --accent:      #1B3A5C;
+  --accent-weak: #D4DCE6;   /* 加深 1 档，让选中态更明显 */
+
+  /* 语义色（数据编码，非品牌强调色） */
+  --ok:      #2F6B4F;
+  --warn:    #8A6A1F;
+  --danger:  #8C3A32;
+  --ok-bg:   #EDF3EF;
+  --warn-bg: #F5F0E4;
+  --danger-bg:#F6EBE9;
+
+  /* 间距 4px 基准 */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s6: 24px; --s8: 32px; --s12: 48px;
+
+  --radius: 4px;
+
+  /* 兜底链是必需的，不违反禁令 6——禁的是系统字体作**主字体**。
+     子集为 GB2312（7541 字），VLM 结论里的生僻字落到兜底才不会变豆腐块。 */
+  --font-cn: 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-en: 'IBM Plex Sans', ui-sans-serif, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+html { background: var(--bg); color: var(--text); }
+/* 顺序是 en 在前：字体按字符逐个回退，第一个有该字形的字体就赢。
+   HarmonyOS Sans SC 自带拉丁字形，排前面会把拉丁与数字全部吃掉，
+   --font-en 就成了死代码——与 DESIGN.md「拉丁与数字用 IBM Plex」相悖。
+   IBM Plex 没有汉字，中文自然落到 HarmonyOS，两边各归其位。 */
+body { font-family: var(--font-en), var(--font-cn); margin: 0; }
+
+/* 数字一律等宽对齐——分数/坐标/耗时要能上下对齐 */
+.num, table td, table th { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+
+/* 层次一律靠 border 或色调差，全站禁用 drop shadow。
+   只清 --tw-shadow：Tailwind 的焦点环走 --tw-ring-shadow，同样是 box-shadow 实现，
+   若用 `box-shadow: none !important` 一刀切会连键盘 Tab 的焦点指示一起干掉。 */
+* { --tw-shadow: 0 0 #0000 !important; }
+
+/* 动效预算（spec §5.2）：全站只有这两处，其余一律静态。
+   自己写而不是装 tailwindcss-animate——插件的默认时长远超预算，且会顺带引入
+   一堆我们禁用的入场动画类。 */
+@keyframes dg-step-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes dg-verdict-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.dg-step    { animation: dg-step-in 160ms ease-out both; }
+.dg-verdict { animation: dg-verdict-in 200ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
