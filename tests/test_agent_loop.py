@@ -184,3 +184,22 @@ def test_forced_turn_nondict_verdict_no_crash():
                       vlm=lambda messages: FORCED_NONDICT))
     assert evs[-1].type == "verdict"
     assert evs[-1].payload["source"] == "agent-forced"
+
+
+# ─── OpenAI 兼容协议消息转换（接公司内部模型网关） ───────────────────
+def test_to_openai_messages_conversion():
+    from agent import to_openai_messages
+    src = [
+        {"role": "system", "content": [{"text": "你是审核员"}]},
+        {"role": "user", "content": [
+            {"text": "看图"},
+            {"image": "data:image/jpeg;base64,abc123"},
+        ]},
+    ]
+    out = to_openai_messages(src)
+    assert out[0] == {"role": "system", "content": [{"type": "text", "text": "你是审核员"}]}
+    assert out[1]["content"][0] == {"type": "text", "text": "看图"}
+    assert out[1]["content"][1] == {"type": "image_url",
+                                    "image_url": {"url": "data:image/jpeg;base64,abc123"}}
+    # 原消息不被修改
+    assert "type" not in src[0]["content"][0]

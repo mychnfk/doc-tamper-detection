@@ -14,3 +14,6 @@ VLM_MAX_SIZE = int(os.getenv("DOCGUARD_VLM_MAX_SIZE", "2048"))  # 送 VLM 的图
 VLM_MODEL = os.getenv("DOCGUARD_VLM_MODEL", "qwen3.7-max-2026-06-08")
 VLM_BASE_URL = os.getenv("DOCGUARD_VLM_BASE_URL",
                          "https://llm-grvsxc3jcll56h4b.cn-beijing.maas.aliyuncs.com/api/v1")
+# dashscope=百炼原生 SDK；openai=OpenAI 兼容协议（接公司内部模型网关用，
+# 此时 BASE_URL 填网关地址、MODEL 填网关模型名、DASHSCOPE_API_KEY 填网关 key）
+VLM_PROTOCOL = os.getenv("DOCGUARD_VLM_PROTOCOL", "dashscope")

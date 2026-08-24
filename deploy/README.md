@@ -27,3 +27,17 @@
 - 其余情况：把 `deploy-report.txt` + `logs\docguard.err.log` 发回项目组即可，不用自己排查
 
 *大模型复核功能需要能访问 DashScope（阿里云）；内网不通时系统自动降级为仅像素取证模式，核心检测功能不受影响。
+
+## 接入公司内部模型服务（可选，替代 DashScope）
+
+若内部模型网关是 OpenAI 兼容接口（绝大多数是）且有**多模态（视觉）模型**，
+编辑根目录 `.env` 为如下四行后执行 `deploy\nssm.exe restart DocGuard` 即可，无需改代码：
+
+```
+DASHSCOPE_API_KEY=<网关下发的 key>
+DOCGUARD_VLM_PROTOCOL=openai
+DOCGUARD_VLM_BASE_URL=<网关地址，形如 http://xxx/v1>
+DOCGUARD_VLM_MODEL=<网关上的视觉模型名>
+```
+
+验证：`.venv\Scripts\python.exe deploy\check_vlm.py` 输出 OK 即通。

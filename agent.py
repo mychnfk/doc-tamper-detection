@@ -42,8 +42,30 @@ def image_to_base64(img):
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def to_openai_messages(messages):
+    """DashScope 消息格式 → OpenAI 兼容格式（纯转换，无副作用）。
+    图像在本项目内一律是 data URI，直接平移进 image_url 即可。"""
+    out = []
+    for m in messages:
+        parts = []
+        for item in m["content"]:
+            if "text" in item:
+                parts.append({"type": "text", "text": item["text"]})
+            elif "image" in item:
+                parts.append({"type": "image_url", "image_url": {"url": item["image"]}})
+        out.append({"role": m["role"], "content": parts})
+    return out
+
+
 def call_vlm(messages):
     import os
+    if config.VLM_PROTOCOL == "openai":
+        # 公司内部模型网关走 OpenAI 兼容协议；异常向上抛，与原生路径同语义（review 统一降级）
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"), base_url=config.VLM_BASE_URL)
+        resp = client.chat.completions.create(model=config.VLM_MODEL,
+                                              messages=to_openai_messages(messages))
+        return resp.choices[0].message.content
     import dashscope
     dashscope.base_http_api_url = config.VLM_BASE_URL
     resp = dashscope.MultiModalConversation.call(
