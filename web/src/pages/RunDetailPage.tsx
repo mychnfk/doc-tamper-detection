@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeftIcon } from 'lucide-react'
 import type { CvPayload, TraceEvent, VerdictPayload } from '@/lib/types'
 import { Button } from '@/components/ui/button'
+import { CvFirstCheck } from '@/components/CvFirstCheck'
 import { TraceView } from '@/components/TraceView'
 import { VerdictCard } from '@/components/VerdictCard'
 import { CompareSlider } from '@/components/CompareSlider'
@@ -86,6 +87,7 @@ export default function RunDetailPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <section className="space-y-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
           {verdict && <VerdictCard payload={verdict} />}
+          {cv && run.meta.mode !== 'cv' && <CvFirstCheck cv={cv} />}
 
           {cv && (
             <>

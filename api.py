@@ -16,6 +16,7 @@ from pillow_heif import register_heif_opener
 import config
 import pipeline
 import runs_store
+from agent import cv_grade
 from pipeline import get_runtime
 from run_inference import run_single
 
@@ -102,8 +103,10 @@ async def detect(file: UploadFile = File(...), mode: str = Form("agent")):
                         runs_store.save_image(run_id, "original.jpg", item["original"])
                         runs_store.save_image(run_id, "heatmap.jpg", item["heatmap"])
                         runs_store.save_image(run_id, "confidence.jpg", item["confidence"])
+                        label, risk = cv_grade(item["score"])
                         data = {"run_id": run_id, "turn": 0, "type": "cv", "elapsed_ms": elapsed,
                                 "payload": {"score": item["score"], "infer_size": item["infer_size"],
+                                            "label": label, "risk": risk,
                                             "candidates": item["candidates"],
                                             "original": f"/api/runs/{run_id}/original.jpg",
                                             "heatmap": f"/api/runs/{run_id}/heatmap.jpg",

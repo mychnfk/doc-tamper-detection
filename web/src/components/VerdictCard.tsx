@@ -4,8 +4,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { VerdictPayload } from '@/lib/types'
 
-/** 风险三态 → 语义色 + 静态字形。禁止动画点/脉冲圆（禁令 4）。 */
-const RISK = {
+/** 风险三态 → 语义色 + 静态字形。禁止动画点/脉冲圆（禁令 4）。CvFirstCheck 复用。 */
+export const RISK = {
   低: { icon: CheckIcon, fg: 'text-ok', bg: 'bg-ok-bg', border: 'border-ok' },
   中: { icon: AlertTriangleIcon, fg: 'text-warn', bg: 'bg-warn-bg', border: 'border-warn' },
   高: { icon: CircleAlertIcon, fg: 'text-danger', bg: 'bg-danger-bg', border: 'border-danger' },

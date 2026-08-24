@@ -189,13 +189,17 @@ def direct_review(ctx):
 
 
 # ─── Loop 主体与三模式入口 ───────────────────────────────────────────
+def cv_grade(score):
+    """篡改评分 → (结论, 风险)。cv 模式结论与 UI 的「CV 首检」条共用同一映射。"""
+    if score > config.HIGH_THRESH:
+        return "高度可疑", "高"
+    if score > config.LOW_THRESH:
+        return "疑似异常", "中"
+    return "未见明显篡改", "低"
+
+
 def _cv_only_verdict(ctx):
-    if ctx.score > config.HIGH_THRESH:
-        label, risk = "高度可疑", "高"
-    elif ctx.score > config.LOW_THRESH:
-        label, risk = "疑似异常", "中"
-    else:
-        label, risk = "未见明显篡改", "低"
+    label, risk = cv_grade(ctx.score)
     text = (f"### 审核结论：{label}\n\n**CV 篡改评分**：{ctx.score:.4f}（0=正常，1=篡改）\n\n"
             f"**风险等级**：{RISK_EMOJI[risk]} {risk}\n\n"
             f"（AI 复核暂不可用，以上为 CV 工具独立判定，建议结合人工审核）")

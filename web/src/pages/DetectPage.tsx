@@ -3,6 +3,7 @@ import { FileImageIcon, UploadIcon, XIcon } from 'lucide-react'
 import { runDetection } from '@/lib/sse'
 import type { CvPayload, TraceEvent, VerdictPayload } from '@/lib/types'
 import { Button } from '@/components/ui/button'
+import { CvFirstCheck } from '@/components/CvFirstCheck'
 import { TraceView } from '@/components/TraceView'
 import { VerdictCard } from '@/components/VerdictCard'
 import { CompareSlider } from '@/components/CompareSlider'
@@ -230,6 +231,7 @@ export default function DetectPage() {
         )}
         {/* 渐进式披露：结论永远可见 → 轨迹默认展开 → 技术细节默认收起 */}
         {verdict && <VerdictCard payload={verdict} />}
+        {cv && mode !== 'cv' && <CvFirstCheck cv={cv} />}
         <TraceView events={events} running={status === "running"} mode={mode} />
         {cv && <TechDetails cv={cv} durationMs={durationMs} />}
       </section>

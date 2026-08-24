@@ -16,6 +16,9 @@ export interface TraceEvent {
 export interface CvPayload {
   score: number
   infer_size: string
+  /** CV 独立判定（阈值映射在后端 agent.py::cv_grade）。旧记录的事件里没有，回放时可能缺失。 */
+  label?: string
+  risk?: string
   candidates: { id: number; bbox: number[]; area_frac: number; mean_score: number }[]
   original: string
   heatmap: string
