@@ -52,14 +52,23 @@ function Test-Tcp([string]$TargetHost, [int]$Port) {
     } catch { return $false }
 }
 
+function Invoke-Native([string]$Exe, [string[]]$ExeArgs) {
+    # 外部程序 2>&1 在 $ErrorActionPreference='Stop' 下会把 stderr 文本当终止性错误抛出，
+    # 跟程序自身退出码无关（PowerShell 5.1 已知坑）。这里临时放宽，只信 $LASTEXITCODE。
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Exe @ExeArgs 2>&1 }
+    finally { $ErrorActionPreference = $prevEAP }
+}
+
 function Get-SystemPython {
     # 返回 @{Exe=..; Pre=..}；优先 py 启动器精确选 3.12
     try {
-        $v = & py -3.12 --version 2>&1
+        $v = Invoke-Native 'py' @('-3.12', '--version')
         if ("$v" -match 'Python 3\.12') { return @{ Exe = 'py'; Pre = @('-3.12') } }
     } catch {}
     try {
-        $v = & python --version 2>&1
+        $v = Invoke-Native 'python' @('--version')
         if ("$v" -match 'Python 3\.12') { return @{ Exe = 'python'; Pre = @() } }
     } catch {}
     return $null
@@ -223,7 +232,7 @@ Write-Host "`n═══ 阶段 3/4：运行测试 ═══" -ForegroundColor Cy
 $S = '3-运行测试'
 
 # 单元/集成测试：VLM 已 mock，不出网不耗 GPU，秒级
-$pytestOut = & $VenvPy -m pytest (Join-Path $Root 'tests') -q 2>&1
+$pytestOut = Invoke-Native $VenvPy @('-m', 'pytest', (Join-Path $Root 'tests'), '-q')
 $pytestTail = ($pytestOut | Select-Object -Last 1)
 if ($LASTEXITCODE -ne 0) {
     Write-Host ($pytestOut -join "`n")
@@ -233,7 +242,7 @@ Add-Result $S 'pytest' 'OK' "$pytestTail"
 
 # 基线回归：CUDA 分数须与 Mac 基线在容差内（首次加载模型+大图切片，约 1-3 分钟）
 Write-Host '基线回归中（含 3456x4608 大图切片推理，请稍候）…'
-$blOut = & $VenvPy (Join-Path $Root 'deploy\check_baseline.py') 2>&1
+$blOut = Invoke-Native $VenvPy @((Join-Path $Root 'deploy\check_baseline.py'))
 Write-Host ($blOut -join "`n")
 $blDetail = (($blOut | Where-Object { $_ -match '^(OK|WARN|FAIL)' }) -join ' ; ')
 if ($LASTEXITCODE -eq 2) { Stop-Deploy $S '基线回归' "跑不起来：$blDetail" }
@@ -241,7 +250,7 @@ elseif ($LASTEXITCODE -eq 1) { Add-Result $S '基线回归' 'WARN' "超容差，
 else { Add-Result $S '基线回归' 'OK' $blDetail }
 
 # VLM 冒烟：不通不阻塞（自动降级为仅像素取证）
-$vlmOut = & $VenvPy (Join-Path $Root 'deploy\check_vlm.py') 2>&1
+$vlmOut = Invoke-Native $VenvPy @((Join-Path $Root 'deploy\check_vlm.py'))
 if ($LASTEXITCODE -eq 0) { Add-Result $S 'VLM 冒烟' 'OK' (($vlmOut | Select-Object -Last 1)) }
 else { Add-Result $S 'VLM 冒烟' 'WARN' ('不通，Agent/快速复核将自动降级为仅像素取证。' + ($vlmOut | Select-Object -Last 1)) }
 
@@ -250,7 +259,7 @@ Write-Host "`n═══ 阶段 4/4：部署服务 ═══" -ForegroundColor Cy
 $S = '4-部署服务'
 
 # 防火墙：允许局域网同事访问
-$fwRule = & netsh advfirewall firewall show rule name="DocGuard-8000" 2>&1
+$fwRule = Invoke-Native 'netsh' @('advfirewall', 'firewall', 'show', 'rule', 'name=DocGuard-8000')
 if ("$fwRule" -match 'DocGuard-8000') {
     Add-Result $S '防火墙' 'OK' '规则已存在'
 } else {
@@ -262,7 +271,7 @@ if ("$fwRule" -match 'DocGuard-8000') {
 New-Item -ItemType Directory -Force -Path (Join-Path $Root 'logs') | Out-Null
 $svc = Get-Service -Name 'DocGuard' -ErrorAction SilentlyContinue
 if ($svc) {
-    & $Nssm stop DocGuard 2>&1 | Out-Null
+    Invoke-Native $Nssm @('stop', 'DocGuard') | Out-Null
     Add-Result $S '服务注册' 'OK' '服务已存在，更新配置后重启'
 } else {
     & $Nssm install DocGuard $VenvPy '-u' '-m' 'uvicorn' 'api:app' '--host' '0.0.0.0' '--port' '8000'
@@ -278,7 +287,7 @@ if ($svc) {
 & $Nssm set DocGuard Start SERVICE_AUTO_START | Out-Null
 & $Nssm set DocGuard AppExit Default Restart | Out-Null
 & $Nssm set DocGuard AppRestartDelay 5000 | Out-Null
-& $Nssm start DocGuard 2>&1 | Out-Null
+Invoke-Native $Nssm @('start', 'DocGuard') | Out-Null
 
 # 健康检查：等模型预热（首次含 CUDA 内核编译，给足 180 秒）
 Write-Host '等待服务启动与模型预热…'
